@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package abi;
+
+message CommandRequest {
+    oneof request_data {
+        Hget hget = 1;
+        Hgetall hgetall = 2;
+        Hmget hmget = 3;
+        Hset hset = 4;
+        Hmset hmset = 5;
+        Hdel hdel = 6;
+        Hmdel hmdel = 7;
+        Hexist hexist = 8;
+        Hmexist hmexist = 9;
+    }
+}
+
+message CommandResponse {
+    // use the same status code as HTTP, like 2xx/4xx/5xx
+    uint32 status = 1;
+    // error message if the status code is not 2xx
+    string message = 2;
+    // if success, return the values of the key-value pairs
+    repeated Value values = 3;
+    // if success, return the key-value pairs
+    repeated Kvpair pairs = 4;
+}
+
+// get a key-value pair from the given table
+message Hget {
+    string table = 1;
+    string key = 2;
+}
+
+// get all key-value pairs of the given table
+message Hgetall {
+    string table = 1;
+}
+
+// get multiple keys from the given table
+message Hmget {
+    string table = 1;
+    repeated string keys = 2;
+}
+
+// set a key-value pair
+message Hset {
+    string table = 1;
+    Kvpair pair = 2;
+}
+
+// set multiple key-value pairs
+message Hmset {
+    string table = 1;
+    repeated Kvpair pairs = 2;
+}
+
+// delete a key, and return the value of the deleted key
+message Hdel {
+    string table = 1;
+    string key = 2;
+}
+
+// delete multiple keys, and return the values of the deleted keys
+message Hmdel {
+    string table = 1;
+    repeated string keys = 2;
+}
+
+// check if the key exists in the given table
+message Hexist {
+    string table = 1;
+    string key = 2;
+}
+
+// check if multiple keys exist in the given table
+message Hmexist {
+    string table = 1;
+    repeated string keys = 2;   
+}
+
+message Value {
+    oneof value {
+        string string = 1;
+        bytes binary = 2;
+        int64 integer = 3;
+        double float = 4;
+        bool bool = 5;
+    }
+}
+
+message Kvpair {
+    string key = 1;
+    Value value = 2;
+}
