@@ -2,6 +2,7 @@ mod abi;
 
 pub use abi::{command_request::RequestData, *};
 use http::StatusCode;
+use prost::Message;
 
 use crate::KvError;
 
@@ -63,6 +64,14 @@ impl From<i64> for Value {
         Self {
             value: Some(value::Value::Integer(i)),
         }
+    }
+}
+
+impl TryFrom<&[u8]> for Value {
+    type Error = KvError;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Value::decode(data)?)
     }
 }
 

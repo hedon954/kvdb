@@ -1,8 +1,10 @@
 mod memory;
+mod sleddb;
 
 use crate::{KvError, Kvpair, Value};
 
 pub use memory::MemTable;
+pub use sleddb::SledDb;
 
 /// Storage is a trait that defines the interface for a key-value storage engine,
 /// the backend may be a memory HashMap or other storage engines like sled, rocksdb, etc.
@@ -159,5 +161,26 @@ mod tests {
                 Kvpair::new("k2", "v2".into())
             ]
         );
+    }
+
+    use tempfile::tempdir;
+
+    #[test]
+    fn sleddb_basic_interface_should_work() {
+        let dir = tempdir().unwrap();
+        let store = SledDb::new(dir);
+        test_basic_interface(store);
+    }
+    #[test]
+    fn sleddb_get_all_should_work() {
+        let dir = tempdir().unwrap();
+        let store = SledDb::new(dir);
+        test_get_all(store);
+    }
+    #[test]
+    fn sleddb_iter_should_work() {
+        let dir = tempdir().unwrap();
+        let store = SledDb::new(dir);
+        test_get_iter(store);
     }
 }

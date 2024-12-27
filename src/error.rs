@@ -19,6 +19,9 @@ pub enum KvError {
     #[error("Failed to decode protobuf message: {0}")]
     DecodeError(#[from] prost::DecodeError),
 
+    #[error("Sled error: {0}")]
+    SledError(#[from] sled::Error),
+
     #[error("Internal error: {0}")]
     Internal(String),
 }
