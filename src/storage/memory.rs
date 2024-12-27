@@ -2,7 +2,7 @@ use dashmap::{mapref::one::Ref, DashMap};
 
 use crate::{Kvpair, Value};
 
-use super::Storage;
+use super::{Storage, StorageIter};
 
 /// A simple in-memory key-value storage engine built on top of dashmap.
 /// It is thread-safe and supports concurrent read and write operations.
@@ -58,11 +58,12 @@ impl Storage for MemTable {
             .collect())
     }
 
-    #[allow(unused)]
     fn get_iter(
         &self,
         table: &str,
     ) -> Result<Box<dyn Iterator<Item = crate::Kvpair>>, crate::KvError> {
-        todo!()
+        let table = self.get_or_create_table(table).clone();
+        let iter = StorageIter::new(table.into_iter());
+        Ok(Box::new(iter))
     }
 }

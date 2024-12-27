@@ -26,6 +26,49 @@ pub trait Storage {
     fn get_iter(&self, table: &str) -> Result<Box<dyn Iterator<Item = Kvpair>>, KvError>;
 }
 
+/// An iterator that converts the item type of the underlying iterator to Kvpair
+pub struct StorageIter<T> {
+    data: T,
+}
+
+impl<T> StorageIter<T> {
+    pub fn new(data: T) -> Self {
+        Self { data }
+    }
+}
+
+/// Why do we implement the `Iterator` trait for `StorageIter`?
+/// Thinking the following steps for creating a new Storage and how to implement the `get_iter` method:
+/// 1. get the specific table's owning iterator;
+/// 2. map for the iterator;
+/// 3. convert the item type of the iterator to Kvpair;
+/// 4. return the new iterator;
+///
+/// Only the 1st step is specific to the Storage, the other steps are common for all iterators.
+/// So we can implement the `Iterator` trait for `StorageIter` to avoid code duplication.
+///
+/// Example:
+///
+/// fn get_iter(
+///    &self,
+///    table: &str,
+/// ) -> Result<Box<dyn Iterator<Item = crate::Kvpair>>, crate::KvError> {
+///    let table = self.get_or_create_table(table).clone();
+///    let iter = StorageIter::new(table.into_iter());
+///    Ok(Box::new(iter))
+/// }
+impl<T> Iterator for StorageIter<T>
+where
+    T: Iterator,
+    T::Item: Into<Kvpair>,
+{
+    type Item = Kvpair;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.data.next().map(|v| v.into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -42,11 +85,11 @@ mod tests {
         test_get_all(store);
     }
 
-    // #[test]
-    // fn memtable_get_iter_should_work() {
-    //     let store = MemTable::new();
-    //     test_get_iter(&store);
-    // }
+    #[test]
+    fn memtable_get_iter_should_work() {
+        let store = MemTable::new();
+        test_get_iter(store);
+    }
 
     fn test_basic_interface(store: impl Storage) {
         // 1. set an unexisting key, should return None
