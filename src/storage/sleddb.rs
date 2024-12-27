@@ -8,7 +8,7 @@ use crate::{KvError, Kvpair, Value};
 use super::{Storage, StorageIter};
 
 /// SledDb is a storage engine that uses sled as the backend.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SledDb(Db);
 
 impl SledDb {
