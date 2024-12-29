@@ -1,6 +1,7 @@
 mod abi;
 
 pub use abi::{command_request::RequestData, *};
+use bytes::Bytes;
 use http::StatusCode;
 use prost::Message;
 
@@ -117,5 +118,19 @@ impl From<KvError> for CommandResponse {
 impl From<(String, Value)> for Kvpair {
     fn from(kv: (String, Value)) -> Self {
         Kvpair::new(kv.0, kv.1)
+    }
+}
+
+impl<const N: usize> From<[u8; N]> for Value {
+    fn from(data: [u8; N]) -> Self {
+        Bytes::copy_from_slice(&data[..]).into()
+    }
+}
+
+impl From<Bytes> for Value {
+    fn from(data: Bytes) -> Self {
+        Self {
+            value: Some(value::Value::Binary(data)),
+        }
     }
 }

@@ -95,42 +95,45 @@ mod tests {
 
     fn test_basic_interface(store: impl Storage) {
         // 1. set an unexisting key, should return None
-        assert_eq!(Ok(None), store.set("t1", "hello".into(), "value".into()));
+        assert_eq!(
+            None,
+            store.set("t1", "hello".into(), "value".into()).unwrap()
+        );
 
         // 2. set an existing key, should return the old value
         assert_eq!(
-            Ok(Some("value".into())),
-            store.set("t1", "hello".into(), "value2".into())
+            Some("value".into()),
+            store.set("t1", "hello".into(), "value2".into()).unwrap()
         );
 
         // 3. get the key, should return the new value
-        assert_eq!(Ok(Some("value2".into())), store.get("t1", "hello"));
+        assert_eq!(Some("value2".into()), store.get("t1", "hello").unwrap());
 
         // 4. get the unexisting key or table, should return None
-        assert_eq!(Ok(None), store.get("t1", "unexisting"));
-        assert_eq!(Ok(None), store.get("unexisting", "hello"));
+        assert_eq!(None, store.get("t1", "unexisting").unwrap());
+        assert_eq!(None, store.get("unexisting", "hello").unwrap());
 
         // 5. check the existing key, should return true
-        assert_eq!(Ok(true), store.contains("t1", "hello"));
+        assert!(store.contains("t1", "hello").unwrap());
 
         // 6. check the unexisting key or table, should return false
-        assert_eq!(Ok(false), store.contains("t1", "unexisting"));
-        assert_eq!(Ok(false), store.contains("unexisting", "hello"));
+        assert!(!store.contains("t1", "unexisting").unwrap());
+        assert!(!store.contains("unexisting", "hello").unwrap());
 
         // 7. del the key, should return the value
         let v = store.del("t1", "hello");
-        assert_eq!(v, Ok(Some("value2".into())));
+        assert_eq!(Some("value2".into()), v.unwrap());
 
         // 8. get the key, should return None
-        assert_eq!(Ok(None), store.get("t1", "hello"));
+        assert_eq!(None, store.get("t1", "hello").unwrap());
 
         // 9. del the unexisting key or table   , should return None
-        assert_eq!(Ok(None), store.del("t1", "unexisting"));
-        assert_eq!(Ok(None), store.del("unexisting", "hello"));
+        assert_eq!(None, store.del("t1", "unexisting").unwrap());
+        assert_eq!(None, store.del("unexisting", "hello").unwrap());
     }
 
     fn test_get_all(store: impl Storage) {
-        assert_eq!(Ok(vec![]), store.get_all("t2"));
+        assert!(store.get_all("t2").unwrap().is_empty());
 
         store.set("t2", "k1".into(), "v1".into()).unwrap();
         store.set("t2", "k2".into(), "v2".into()).unwrap();
