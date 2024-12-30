@@ -1,12 +1,14 @@
 mod frame;
+mod tls;
 
 use bytes::BytesMut;
-pub use frame::{read_frame, FrameCoder};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tracing::info;
 
 use crate::{CommandRequest, CommandResponse, KvError, Service};
 
+pub use frame::{read_frame, FrameCoder};
+pub use tls::{TlsClientConnector, TlsServerAcceptor};
 /// A stream used to handle the read and write of a socket accepted by the server
 pub struct ProstServerStream<S> {
     inner: S,

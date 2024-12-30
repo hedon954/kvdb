@@ -30,4 +30,10 @@ pub enum KvError {
 
     #[error("Frame is large than max size")]
     FrameTooLarge,
+
+    #[error("Failed to parse certificate: {0} {1}")]
+    CertificateParseError(&'static str, &'static str),
+
+    #[error("TLS error")]
+    TlsError(#[from] tokio_rustls::rustls::TLSError),
 }
