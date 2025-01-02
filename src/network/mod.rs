@@ -1,23 +1,25 @@
 mod frame;
+mod stream;
 mod tls;
 
-use bytes::BytesMut;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use futures::prelude::*;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::info;
 
 use crate::{CommandRequest, CommandResponse, KvError, Service};
 
 pub use frame::{read_frame, FrameCoder};
+pub use stream::ProstStream;
 pub use tls::{TlsClientConnector, TlsServerAcceptor};
 /// A stream used to handle the read and write of a socket accepted by the server
 pub struct ProstServerStream<S> {
-    inner: S,
+    inner: ProstStream<S, CommandRequest, CommandResponse>,
     service: Service,
 }
 
 /// A stream used to handle the read and write of a socket connected to the server
 pub struct ProstClientStream<S> {
-    inner: S,
+    inner: ProstStream<S, CommandResponse, CommandRequest>,
 }
 
 impl<S> ProstServerStream<S>
@@ -26,36 +28,20 @@ where
 {
     pub fn new(stream: S, service: Service) -> Self {
         Self {
-            inner: stream,
+            inner: ProstStream::new(stream),
             service,
         }
     }
 
     /// Process the client connection
     pub async fn process(mut self) -> Result<(), KvError> {
-        while let Ok(cmd) = self.recv().await {
+        let stream = &mut self.inner;
+        while let Some(Ok(cmd)) = stream.next().await {
             info!("Got a new command: {:?}", cmd);
             let resp = self.service.execute(cmd);
-            self.send(resp).await?;
+            stream.send(resp).await?;
         }
         info!("The client has closed the connection");
-        Ok(())
-    }
-
-    /// Read a command from the client
-    async fn recv(&mut self) -> Result<CommandRequest, KvError> {
-        let mut buf = BytesMut::new();
-        let stream = &mut self.inner;
-        read_frame(stream, &mut buf).await?;
-        CommandRequest::decode_frame(&mut buf)
-    }
-
-    /// Send a response to the client
-    async fn send(&mut self, resp: CommandResponse) -> Result<(), KvError> {
-        let mut buf = BytesMut::new();
-        resp.encode_frame(&mut buf)?;
-        let encoded = buf.freeze();
-        self.inner.write_all(&encoded[..]).await?;
         Ok(())
     }
 }
@@ -65,30 +51,20 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
     pub fn new(stream: S) -> Self {
-        Self { inner: stream }
+        Self {
+            inner: ProstStream::new(stream),
+        }
     }
 
     /// Send a command to the server and wait for the response
     pub async fn execute(&mut self, cmd: CommandRequest) -> Result<CommandResponse, KvError> {
-        self.send(cmd).await?;
-        self.recv().await
-    }
-
-    /// Send a command to the server
-    async fn send(&mut self, cmd: CommandRequest) -> Result<(), KvError> {
-        let mut buf = BytesMut::new();
-        cmd.encode_frame(&mut buf)?;
-        let encoded = buf.freeze();
-        self.inner.write_all(&encoded[..]).await?;
-        Ok(())
-    }
-
-    /// Read a response from the server
-    async fn recv(&mut self) -> Result<CommandResponse, KvError> {
-        let mut buf = BytesMut::new();
         let stream = &mut self.inner;
-        read_frame(stream, &mut buf).await?;
-        CommandResponse::decode_frame(&mut buf)
+        stream.send(cmd).await?;
+
+        match stream.next().await {
+            Some(v) => v,
+            None => Err(KvError::Internal("Didn't get any response".into())),
+        }
     }
 }
 
@@ -160,5 +136,74 @@ mod tests {
         });
 
         Ok(addr)
+    }
+}
+
+#[cfg(test)]
+pub mod utils {
+    use std::task::Poll;
+
+    use bytes::{BufMut, BytesMut};
+    use tokio::io::{AsyncRead, AsyncWrite};
+
+    use crate::CommandRequest;
+
+    use super::{read_frame, FrameCoder};
+
+    pub struct DummyStream {
+        pub buf: BytesMut,
+    }
+
+    impl AsyncRead for DummyStream {
+        fn poll_read(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            let len = buf.capacity();
+            let data = self.get_mut().buf.split_to(len);
+            buf.put_slice(&data);
+            std::task::Poll::Ready(Ok(()))
+        }
+    }
+
+    impl AsyncWrite for DummyStream {
+        fn poll_write(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+            buf: &[u8],
+        ) -> std::task::Poll<Result<usize, std::io::Error>> {
+            self.get_mut().buf.put_slice(buf);
+            Poll::Ready(Ok(buf.len()))
+        }
+
+        fn poll_flush(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<(), std::io::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<(), std::io::Error>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[tokio::test]
+    async fn read_frame_should_work() {
+        let mut buf = BytesMut::new();
+        let cmd = CommandRequest::new_hget("t1", "k1");
+        cmd.encode_frame(&mut buf).unwrap();
+
+        let mut stream = DummyStream { buf };
+
+        let mut data = BytesMut::new();
+        read_frame(&mut stream, &mut data).await.unwrap();
+
+        let cmd1 = CommandRequest::decode_frame(&mut data).unwrap();
+        assert_eq!(cmd, cmd1);
     }
 }
