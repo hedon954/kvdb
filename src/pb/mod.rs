@@ -204,6 +204,15 @@ impl TryFrom<Value> for bool {
     }
 }
 
+impl From<Vec<Value>> for CommandResponse {
+    fn from(values: Vec<Value>) -> Self {
+        Self {
+            values,
+            ..Default::default()
+        }
+    }
+}
+
 impl CommandRequest {
     pub fn format(&self) -> String {
         format!("{:?}", self)
@@ -213,6 +222,13 @@ impl CommandRequest {
 impl CommandResponse {
     pub fn format(&self) -> String {
         format!("{:?}", self)
+    }
+
+    pub fn ok() -> Self {
+        Self {
+            status: StatusCode::OK.as_u16() as u32,
+            ..Default::default()
+        }
     }
 }
 

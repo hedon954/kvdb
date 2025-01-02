@@ -21,7 +21,6 @@ fn get_next_subscription_id() -> u32 {
 }
 
 /// A trait for a topic.
-#[allow(unused)]
 pub trait Topic: Send + Sync + 'static {
     /// Subscribe to a topic.
     fn subscribe(self, name: String) -> mpsc::Receiver<Arc<CommandResponse>>;

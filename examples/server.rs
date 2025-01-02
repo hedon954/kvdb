@@ -27,10 +27,12 @@ async fn main() -> anyhow::Result<()> {
                 info!("Got a new command: {:?}", msg);
 
                 // execute the command
-                let resp = svc.execute(msg);
+                let mut resp = svc.execute(msg);
 
                 // send the response back to client
-                stream.send(resp).await.unwrap();
+                while let Some(v) = resp.next().await {
+                    stream.send((*v).clone()).await.unwrap();
+                }
             }
             info!("Client {:?} disconnected", addr);
         });

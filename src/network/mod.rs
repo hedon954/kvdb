@@ -41,8 +41,10 @@ where
         let stream = &mut self.inner;
         while let Some(Ok(cmd)) = stream.next().await {
             info!("Got a new command: {:?}", cmd);
-            let resp = self.service.execute(cmd);
-            stream.send(resp).await?;
+            let mut resp = self.service.execute(cmd);
+            while let Some(v) = resp.next().await {
+                stream.send(&v).await?;
+            }
         }
         info!("The client has closed the connection");
         Ok(())
@@ -62,7 +64,7 @@ where
     /// Send a command to the server and wait for the response
     pub async fn execute(&mut self, cmd: CommandRequest) -> Result<CommandResponse, KvError> {
         let stream = &mut self.inner;
-        stream.send(cmd).await?;
+        stream.send(&cmd).await?;
 
         match stream.next().await {
             Some(v) => v,
