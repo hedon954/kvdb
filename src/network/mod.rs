@@ -1,4 +1,5 @@
 mod frame;
+mod multiplex;
 mod stream;
 mod tls;
 
@@ -9,8 +10,10 @@ use tracing::info;
 use crate::{CommandRequest, CommandResponse, KvError, Service};
 
 pub use frame::{read_frame, FrameCoder};
+pub use multiplex::YamuxCtrl;
 pub use stream::ProstStream;
 pub use tls::{TlsClientConnector, TlsServerAcceptor};
+
 /// A stream used to handle the read and write of a socket accepted by the server
 pub struct ProstServerStream<S> {
     inner: ProstStream<S, CommandRequest, CommandResponse>,
@@ -150,6 +153,7 @@ pub mod utils {
 
     use super::{read_frame, FrameCoder};
 
+    #[derive(Default)]
     pub struct DummyStream {
         pub buf: BytesMut,
     }
@@ -160,8 +164,9 @@ pub mod utils {
             _cx: &mut std::task::Context<'_>,
             buf: &mut tokio::io::ReadBuf<'_>,
         ) -> std::task::Poll<std::io::Result<()>> {
-            let len = buf.capacity();
-            let data = self.get_mut().buf.split_to(len);
+            let this = self.get_mut();
+            let len = std::cmp::min(buf.capacity(), this.buf.len());
+            let data = this.buf.split_to(len);
             buf.put_slice(&data);
             std::task::Poll::Ready(Ok(()))
         }
