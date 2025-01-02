@@ -2,7 +2,7 @@
 pub struct CommandRequest {
     #[prost(
         oneof = "command_request::RequestData",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
     )]
     pub request_data: ::core::option::Option<command_request::RequestData>,
 }
@@ -28,6 +28,12 @@ pub mod command_request {
         Hexist(super::Hexist),
         #[prost(message, tag = "9")]
         Hmexist(super::Hmexist),
+        #[prost(message, tag = "10")]
+        Subscribe(super::Subscribe),
+        #[prost(message, tag = "11")]
+        Unsubscribe(super::Unsubscribe),
+        #[prost(message, tag = "12")]
+        Publish(super::Publish),
     }
 }
 #[derive(PartialOrd, Clone, PartialEq, ::prost::Message)]
@@ -142,4 +148,23 @@ pub struct Kvpair {
     pub key: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "2")]
     pub value: ::core::option::Option<Value>,
+}
+#[derive(PartialOrd, Clone, PartialEq, ::prost::Message)]
+pub struct Subscribe {
+    #[prost(string, tag = "1")]
+    pub topic: ::prost::alloc::string::String,
+}
+#[derive(PartialOrd, Clone, PartialEq, ::prost::Message)]
+pub struct Unsubscribe {
+    #[prost(string, tag = "1")]
+    pub topic: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "2")]
+    pub id: u32,
+}
+#[derive(PartialOrd, Clone, PartialEq, ::prost::Message)]
+pub struct Publish {
+    #[prost(string, tag = "1")]
+    pub topic: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "2")]
+    pub values: ::prost::alloc::vec::Vec<Value>,
 }

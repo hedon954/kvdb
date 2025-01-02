@@ -134,3 +134,90 @@ impl From<Bytes> for Value {
         }
     }
 }
+
+impl TryFrom<&CommandResponse> for i64 {
+    type Error = KvError;
+
+    fn try_from(res: &CommandResponse) -> Result<Self, Self::Error> {
+        if res.status != StatusCode::OK.as_u16() as u32 {
+            return Err(KvError::ConvertCommand(res.format(), "CommandResponse"));
+        }
+        match res.values.first() {
+            Some(v) => v.try_into(),
+            None => Err(KvError::ConvertCommand(res.format(), "CommandResponse")),
+        }
+    }
+}
+
+impl TryFrom<Value> for i64 {
+    type Error = KvError;
+
+    fn try_from(v: Value) -> Result<Self, Self::Error> {
+        match v.value {
+            Some(value::Value::Integer(i)) => Ok(i),
+            _ => Err(KvError::ConvertCommand(v.format(), "Integer")),
+        }
+    }
+}
+
+impl TryFrom<&Value> for i64 {
+    type Error = KvError;
+
+    fn try_from(v: &Value) -> Result<Self, Self::Error> {
+        match v.value {
+            Some(value::Value::Integer(i)) => Ok(i),
+            _ => Err(KvError::ConvertCommand(v.format(), "Integer")),
+        }
+    }
+}
+
+impl TryFrom<Value> for f64 {
+    type Error = KvError;
+
+    fn try_from(v: Value) -> Result<Self, Self::Error> {
+        match v.value {
+            Some(value::Value::Float(f)) => Ok(f),
+            _ => Err(KvError::ConvertCommand(v.format(), "Float")),
+        }
+    }
+}
+
+impl TryFrom<Value> for Bytes {
+    type Error = KvError;
+
+    fn try_from(v: Value) -> Result<Self, Self::Error> {
+        match v.value {
+            Some(value::Value::Binary(b)) => Ok(b),
+            _ => Err(KvError::ConvertCommand(v.format(), "Binary")),
+        }
+    }
+}
+
+impl TryFrom<Value> for bool {
+    type Error = KvError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value.value {
+            Some(value::Value::Bool(b)) => Ok(b),
+            _ => Err(KvError::ConvertCommand(value.format(), "Boolean")),
+        }
+    }
+}
+
+impl CommandRequest {
+    pub fn format(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+impl CommandResponse {
+    pub fn format(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+impl Value {
+    pub fn format(&self) -> String {
+        format!("{:?}", self)
+    }
+}

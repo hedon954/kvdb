@@ -1,10 +1,11 @@
+mod command_service;
+mod topic;
+
 use std::sync::Arc;
 
 use tracing::debug;
 
 use crate::{CommandRequest, CommandResponse, KvError, MemTable, RequestData, Storage};
-
-mod command_service;
 
 /// A trait for command service
 pub trait CommandService {
@@ -120,12 +121,13 @@ pub fn dispatch(cmd: CommandRequest, store: &impl Storage) -> CommandResponse {
 use crate::{Kvpair, Value};
 
 #[cfg(test)]
-pub fn assert_res_ok(mut res: CommandResponse, values: &[Value], pairs: &[Kvpair]) {
-    res.pairs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+pub fn assert_res_ok(res: &CommandResponse, values: &[Value], pairs: &[Kvpair]) {
+    let mut sorted_pairs = res.pairs.to_vec();
+    sorted_pairs.sort_by(|a, b| a.partial_cmp(b).unwrap());
     assert_eq!(res.status, 200);
     assert_eq!(res.message, "");
     assert_eq!(res.values, values);
-    assert_eq!(res.pairs, pairs);
+    assert_eq!(sorted_pairs, pairs);
 }
 
 #[cfg(test)]
@@ -154,13 +156,13 @@ mod tests {
         // create a new thread to set k1, v1, it should return none
         let handle = thread::spawn(move || {
             let res = cloned.execute(CommandRequest::new_hset("t1", "k1", "v1".into()));
-            assert_res_ok(res, &[Value::default()], &[]);
+            assert_res_ok(&res, &[Value::default()], &[]);
         });
         handle.join().unwrap();
 
         // get k1 on current thread, it should return v1
         let res = service.execute(CommandRequest::new_hget("t1", "k1"));
-        assert_res_ok(res, &["v1".into()], &[]);
+        assert_res_ok(&res, &["v1".into()], &[]);
     }
 
     #[test]

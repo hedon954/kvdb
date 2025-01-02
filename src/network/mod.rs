@@ -94,14 +94,14 @@ mod tests {
         let resp = client.execute(cmd).await?;
 
         // first time should return none
-        assert_res_ok(resp, &[Value::default()], &[]);
+        assert_res_ok(&resp, &[Value::default()], &[]);
 
         // hset again
         let cmd = CommandRequest::new_hset("t1", "k1", "v2".into());
         let resp = client.execute(cmd).await?;
 
         // should return the old value
-        assert_res_ok(resp, &["v1".into()], &[]);
+        assert_res_ok(&resp, &["v1".into()], &[]);
         Ok(())
     }
 
@@ -116,11 +116,11 @@ mod tests {
         let cmd = CommandRequest::new_hset("t1", "k1", v.clone());
         let resp = client.execute(cmd).await?;
 
-        assert_res_ok(resp, &[Value::default()], &[]);
+        assert_res_ok(&resp, &[Value::default()], &[]);
 
         let cmd = CommandRequest::new_hget("t1", "k1");
         let resp = client.execute(cmd).await?;
-        assert_res_ok(resp, &[v], &[]);
+        assert_res_ok(&resp, &[v], &[]);
 
         Ok(())
     }
