@@ -7,7 +7,7 @@ use dashmap::{DashMap, DashSet};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
-use crate::{CommandResponse, Value};
+use crate::{CommandResponse, KvError, Value};
 
 /// The capacity of a topic.
 const BROADCAST_CAPACITY: usize = 128;
@@ -25,7 +25,7 @@ pub trait Topic: Send + Sync + 'static {
     /// Subscribe to a topic.
     fn subscribe(self, name: String) -> mpsc::Receiver<Arc<CommandResponse>>;
     /// Unsubscribe from a topic.
-    fn unsubscribe(self, name: String, id: u32);
+    fn unsubscribe(self, name: String, id: u32) -> Result<u32, KvError>;
     /// Publish a message to a topic.
     fn publish(self, name: String, value: Arc<CommandResponse>);
 }
@@ -65,8 +65,11 @@ impl Topic for Arc<Broadcaster> {
         rx
     }
 
-    fn unsubscribe(self, name: String, id: u32) {
-        _ = self.remove_subscription(name, id);
+    fn unsubscribe(self, name: String, id: u32) -> Result<u32, KvError> {
+        match self.remove_subscription(name, id) {
+            Some(id) => Ok(id),
+            None => Err(KvError::NotFound(format!("subscription {}", id))),
+        }
     }
 
     fn publish(self, name: String, value: Arc<CommandResponse>) {
@@ -142,7 +145,8 @@ mod tests {
         assert_res_ok(&res1, &[v.clone()], &[]);
 
         // if unsubscribe, the subscriber should not receive the message.
-        b.clone().unsubscribe(lobby.clone(), id1 as u32);
+        let result = b.clone().unsubscribe(lobby.clone(), id1 as u32);
+        assert!(result.is_ok());
 
         // publish a message to the lobby topic.
         let v: Value = "world".into();
