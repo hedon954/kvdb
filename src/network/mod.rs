@@ -1,11 +1,13 @@
 mod frame;
 mod multiplex;
 mod stream;
+mod stream_result;
 mod tls;
 
 use futures::prelude::*;
+use stream_result::StreamResult;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{CommandRequest, CommandResponse, KvError, Service};
 
@@ -27,7 +29,7 @@ pub struct ProstClientStream<S> {
 
 impl<S> ProstServerStream<S>
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     pub fn new(stream: S, service: Service) -> Self {
         Self {
@@ -38,12 +40,22 @@ where
 
     /// Process the client connection
     pub async fn process(mut self) -> Result<(), KvError> {
+        info!("Processing connection");
         let stream = &mut self.inner;
-        while let Some(Ok(cmd)) = stream.next().await {
-            info!("Got a new command: {:?}", cmd);
-            let mut resp = self.service.execute(cmd);
-            while let Some(v) = resp.next().await {
-                stream.send(&v).await?;
+        while let Some(data) = stream.next().await {
+            match data {
+                Ok(cmd) => {
+                    info!("Got a new command: {:?}", cmd);
+                    let mut resp = self.service.execute(cmd);
+                    while let Some(v) = resp.next().await {
+                        info!("Sending response: {:?}", v);
+                        stream.send(&v).await?;
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to read command: {:?}", e);
+                    return Ok(());
+                }
             }
         }
         info!("The client has closed the connection");
@@ -53,7 +65,7 @@ where
 
 impl<S> ProstClientStream<S>
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     pub fn new(stream: S) -> Self {
         Self {
@@ -61,15 +73,30 @@ where
         }
     }
 
-    /// Send a command to the server and wait for the response
-    pub async fn execute(&mut self, cmd: CommandRequest) -> Result<CommandResponse, KvError> {
+    /// Send a command to the server and wait for the response, use for unary commands
+    pub async fn execute_unary(
+        &mut self,
+        cmd: &CommandRequest,
+    ) -> Result<CommandResponse, KvError> {
         let stream = &mut self.inner;
-        stream.send(&cmd).await?;
-
+        match stream.send(cmd).await {
+            Ok(_) => info!("Sent command to server: {:?}", cmd),
+            Err(e) => error!("Failed to send command {:?} to server: {:?}", cmd, e),
+        }
         match stream.next().await {
             Some(v) => v,
             None => Err(KvError::Internal("Didn't get any response".into())),
         }
+    }
+
+    /// Send a command to the server and wait for the response, use for streaming commands
+    pub async fn execute_stream(self, cmd: &CommandRequest) -> Result<StreamResult, KvError> {
+        let mut stream = self.inner;
+
+        stream.send(cmd).await?;
+        stream.close().await?;
+
+        StreamResult::new(stream).await
     }
 }
 
@@ -93,14 +120,14 @@ mod tests {
 
         // hset
         let cmd = CommandRequest::new_hset("t1", "k1", "v1".into());
-        let resp = client.execute(cmd).await?;
+        let resp = client.execute_unary(&cmd).await?;
 
         // first time should return none
         assert_res_ok(&resp, &[Value::default()], &[]);
 
         // hset again
         let cmd = CommandRequest::new_hset("t1", "k1", "v2".into());
-        let resp = client.execute(cmd).await?;
+        let resp = client.execute_unary(&cmd).await?;
 
         // should return the old value
         assert_res_ok(&resp, &["v1".into()], &[]);
@@ -116,12 +143,12 @@ mod tests {
 
         let v: Value = Bytes::from(vec![0u8; 16384]).into();
         let cmd = CommandRequest::new_hset("t1", "k1", v.clone());
-        let resp = client.execute(cmd).await?;
+        let resp = client.execute_unary(&cmd).await?;
 
         assert_res_ok(&resp, &[Value::default()], &[]);
 
         let cmd = CommandRequest::new_hget("t1", "k1");
-        let resp = client.execute(cmd).await?;
+        let resp = client.execute_unary(&cmd).await?;
         assert_res_ok(&resp, &[v], &[]);
 
         Ok(())

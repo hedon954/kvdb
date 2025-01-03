@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use futures::{future, Future, TryStreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{Compat, FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tracing::error;
 use yamux::{Config, Connection, ConnectionError, Control, Mode, WindowUpdateMode};
 
 /// A multiplexed connection
@@ -61,8 +62,14 @@ where
 
     /// Open a new stream
     pub async fn open_stream(&mut self) -> Result<Compat<yamux::Stream>, ConnectionError> {
-        let stream = self.ctrl.open_stream().await?;
-        Ok(stream.compat())
+        let stream = self.ctrl.open_stream().await;
+        match stream {
+            Ok(stream) => Ok(stream.compat()),
+            Err(e) => {
+                error!("Failed to open stream: {:?}", e);
+                Err(e)
+            }
+        }
     }
 }
 
@@ -172,11 +179,11 @@ mod tests {
 
         // send a command
         let cmd = CommandRequest::new_hset("t1", "k1", "v1".into());
-        client.execute(cmd).await.unwrap();
+        client.execute_unary(&cmd).await.unwrap();
 
         // send again
         let cmd = CommandRequest::new_hget("t1", "k1");
-        let res = client.execute(cmd).await.unwrap();
+        let res = client.execute_unary(&cmd).await.unwrap();
         assert_res_ok(&res, &["v1".into()], &[]);
         Ok(())
     }

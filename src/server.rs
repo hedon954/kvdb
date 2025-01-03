@@ -1,6 +1,7 @@
-use kvdb::{MemTable, ProstServerStream, Service, ServiceInner, TlsServerAcceptor};
+use kvdb::{MemTable, ProstServerStream, Service, ServiceInner, TlsServerAcceptor, YamuxCtrl};
 use tokio::net::TcpListener;
-use tracing::{error, info};
+use tokio_util::compat::FuturesAsyncReadCompatExt;
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -18,20 +19,20 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         let tls = acceptor.clone();
-        let (socket, addr) = listener.accept().await?;
-        info!("accept connection from {}", addr);
-        let stream = match tls.accept(socket).await {
-            Ok(stream) => stream,
-            Err(e) => {
-                error!("failed to accept connection: {}", e);
-                continue;
-            }
-        };
-        let stream = ProstServerStream::new(stream, service.clone());
+        let (stream, addr) = listener.accept().await?;
+        info!("Client {:?} connected", addr);
+
+        let svc = service.clone();
         tokio::spawn(async move {
-            if let Err(e) = stream.process().await {
-                error!("failed to process connection: {}", e);
-            }
+            let stream = tls.accept(stream).await.unwrap();
+            YamuxCtrl::new_server(stream, None, move |stream| {
+                let svc1 = svc.clone();
+                async move {
+                    let stream = ProstServerStream::new(stream.compat(), svc1.clone());
+                    stream.process().await.unwrap();
+                    Ok(())
+                }
+            });
         });
     }
 }

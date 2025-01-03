@@ -34,11 +34,11 @@ impl CommandRequest {
         }
     }
 
-    pub fn new_publish(topic: impl Into<String>, values: impl Into<Vec<Value>>) -> Self {
+    pub fn new_publish(topic: impl Into<String>, values: Vec<Value>) -> Self {
         Self {
             request_data: Some(RequestData::Publish(Publish {
                 topic: topic.into(),
-                values: values.into(),
+                values,
             })),
         }
     }

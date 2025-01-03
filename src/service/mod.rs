@@ -7,7 +7,7 @@ use std::sync::Arc;
 use futures::stream;
 use topic::{Broadcaster, Topic};
 use topic_service::{StreamingResponse, TopicService};
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{CommandRequest, CommandResponse, KvError, MemTable, RequestData, Storage};
 
@@ -139,6 +139,7 @@ pub fn dispatch(cmd: CommandRequest, store: &impl Storage) -> CommandResponse {
 }
 
 pub fn dispatch_stream(cmd: CommandRequest, topic: impl Topic) -> StreamingResponse {
+    info!("Dispatching stream: {:?}", cmd);
     match cmd.request_data {
         Some(RequestData::Subscribe(req)) => req.execute(topic),
         Some(RequestData::Unsubscribe(req)) => req.execute(topic),
